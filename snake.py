@@ -202,7 +202,7 @@ class SnakeGame:
             self.render()
             
             # Control game speed
-            self.clock.tick(10)  # 10 FPS for smooth movement
+            self.clock.tick(15)  # 10 FPS for smooth movement
         
         pygame.quit()
         sys.exit()
