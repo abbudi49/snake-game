@@ -50,6 +50,7 @@ class SnakeGame:
         self.game_over = False
         self.growth_pending = 0
         self.phasing_timer = 0  # Powerup duration in frames
+        self.respawn_queue = []  # List of frame timers for food respawn
         
         # Create multiple food items
         self.foods = []
@@ -65,7 +66,10 @@ class SnakeGame:
             
             # Check if position is free
             if (x, y) not in self.snake and not any((x, y) == food[:2] for food in self.foods):
-                color = random.choice(FOOD_COLORS)
+                # RNG System: Regular (R,O,Y,P), Powerups (Purple, Blue), Banana
+                # Weights: Regular=20 each (80 total), Purple/Blue=10 each, Banana=5
+                weights = [20, 20, 20, 20, 10, 10, 5]
+                color = random.choices(FOOD_COLORS, weights=weights)[0]
                 self.foods.append((x, y, color))
                 break
     
@@ -138,9 +142,19 @@ class SnakeGame:
                     self.score += 10
                 
                 self.foods.pop(i)
-                self.spawn_food()  # Spawn new food
+                # Delay respawn by 3 seconds (30 frames at 10 FPS)
+                self.respawn_queue.append(30)
                 food_eaten = True
                 break
+
+        # Process respawn queue
+        new_respawn_queue = []
+        for timer in self.respawn_queue:
+            if timer > 1:
+                new_respawn_queue.append(timer - 1)
+            else:
+                self.spawn_food()
+        self.respawn_queue = new_respawn_queue
 
         # Remove tail if no food eaten and no pending growth
         if food_eaten:
@@ -228,10 +242,6 @@ class SnakeGame:
         # Draw score
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         self.screen.blit(score_text, (10, 10))
-        
-        # Draw food count
-        food_count_text = self.font.render(f"Food Items: {len(self.foods)}", True, WHITE)
-        self.screen.blit(food_count_text, (10, 50))
         
         # Draw game over
         if self.game_over:
