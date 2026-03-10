@@ -29,8 +29,9 @@ YELLOW = (255, 255, 0)
 PINK = (255, 20, 147)
 PURPLE = (148, 0, 211)
 BLUE = (0, 0, 255)
+BANANA_YELLOW = (255, 225, 53)
 
-FOOD_COLORS = [RED, ORANGE, YELLOW, PINK, PURPLE, BLUE]
+FOOD_COLORS = [RED, ORANGE, YELLOW, PINK, PURPLE, BLUE, BANANA_YELLOW]
 
 class SnakeGame:
     def __init__(self):
@@ -127,6 +128,12 @@ class SnakeGame:
                 elif food[2] == BLUE:
                     self.score += 10
                     self.phasing_timer = 150  # 15 seconds at 10 FPS
+                elif food[2] == BANANA_YELLOW:
+                    # Lose 3 units of length
+                    target_len = max(1, (len(self.snake) - 1) - 3)
+                    while len(self.snake) > target_len:
+                        self.snake.pop()
+                    food_eaten = True # Prevent normal growth
                 else:
                     self.score += 10
                 
@@ -137,11 +144,25 @@ class SnakeGame:
 
         # Remove tail if no food eaten and no pending growth
         if food_eaten:
-            pass # Already grew by 1
+            pass # Already grew (or shrunk)
         elif self.growth_pending > 0:
             self.growth_pending -= 1 # Grow by 1 this move
         else:
             self.snake.pop() # Normal move, no growth
+
+    def draw_banana(self, x, y):
+        """Draw a banana shape"""
+        pixel_x = x * GRID_SIZE
+        pixel_y = y * GRID_SIZE
+        
+        # Banana body (arc-like)
+        rect = (pixel_x + 2, pixel_y + 2, GRID_SIZE - 4, GRID_SIZE - 4)
+        pygame.draw.arc(self.screen, BANANA_YELLOW, rect, 0.5, 3.5, 5)
+        
+        # Stem
+        pygame.draw.line(self.screen, (101, 67, 33), 
+                        (pixel_x + GRID_SIZE//2, pixel_y + 4), 
+                        (pixel_x + GRID_SIZE//2 + 4, pixel_y + 2), 2)
 
     def draw_3d_food(self, x, y, color):
         """Draw food with 3D effect"""
@@ -199,7 +220,10 @@ class SnakeGame:
         # Draw food items with 3D effect
         for food in self.foods:
             x, y, color = food
-            self.draw_3d_food(x, y, color)
+            if color == BANANA_YELLOW:
+                self.draw_banana(x, y)
+            else:
+                self.draw_3d_food(x, y, color)
         
         # Draw score
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
