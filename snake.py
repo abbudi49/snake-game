@@ -12,8 +12,8 @@ import sys
 pygame.init()
 
 # Constants
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 400
+WINDOW_WIDTH = 1200
+WINDOW_HEIGHT = 760
 GRID_SIZE = 20
 GRID_WIDTH = WINDOW_WIDTH // GRID_SIZE
 GRID_HEIGHT = WINDOW_HEIGHT // GRID_SIZE
@@ -61,8 +61,9 @@ class SnakeGame:
         """Spawn a food item at a random location not occupied by snake or other food"""
         max_attempts = 100
         for _ in range(max_attempts):
-            x = random.randint(0, GRID_WIDTH - 1)
-            y = random.randint(0, GRID_HEIGHT - 1)
+            # Avoid the outermost edges (0 and max-1)
+            x = random.randint(1, GRID_WIDTH - 2)
+            y = random.randint(1, GRID_HEIGHT - 2)
             
             # Check if position is free
             if (x, y) not in self.snake and not any((x, y) == food[:2] for food in self.foods):
@@ -159,18 +160,34 @@ class SnakeGame:
             self.snake.pop() # Normal move, no growth
 
     def draw_banana(self, x, y):
-        """Draw a banana shape"""
-        pixel_x = x * GRID_SIZE
-        pixel_y = y * GRID_SIZE
+        """Draw a more realistic banana shape"""
+        px = x * GRID_SIZE
+        py = y * GRID_SIZE
         
-        # Banana body (arc-like)
-        rect = (pixel_x + 2, pixel_y + 2, GRID_SIZE - 4, GRID_SIZE - 4)
-        pygame.draw.arc(self.screen, BANANA_YELLOW, rect, 0.5, 3.5, 5)
+        # Colors
+        body = BANANA_YELLOW
+        shadow = (210, 180, 0)
+        highlight = (255, 255, 150)
+        stem = (100, 70, 30)
+        tip = (60, 40, 10)
+
+        # Draw curved segments to give it volume and shape
+        # Main body segments
+        pygame.draw.ellipse(self.screen, body, (px + 4, py + 6, 12, 9))
+        pygame.draw.ellipse(self.screen, body, (px + 2, py + 10, 8, 6))
         
-        # Stem
-        pygame.draw.line(self.screen, (101, 67, 33), 
-                        (pixel_x + GRID_SIZE//2, pixel_y + 4), 
-                        (pixel_x + GRID_SIZE//2 + 4, pixel_y + 2), 2)
+        # Shadow for depth (bottom curve)
+        pygame.draw.arc(self.screen, shadow, (px + 2, py + 5, 14, 12), 3.4, 6.0, 3)
+        
+        # Highlight for shine (top curve)
+        pygame.draw.arc(self.screen, highlight, (px + 6, py + 7, 8, 5), 0.5, 3.0, 2)
+        
+        # Stem (Top end)
+        pygame.draw.line(self.screen, stem, (px + 14, py + 7), (px + 17, py + 4), 3)
+        pygame.draw.rect(self.screen, tip, (px + 16, py + 3, 2, 2))
+        
+        # Bottom tip (Flower end)
+        pygame.draw.circle(self.screen, tip, (px + 3, py + 14), 2)
 
     def draw_3d_food(self, x, y, color):
         """Draw food with 3D effect"""
