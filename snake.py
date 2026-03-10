@@ -69,17 +69,20 @@ class SnakeGame:
                 break
     
     def handle_input(self):
-        """Handle WASD key input"""
+        """Handle WASD and Arrow key input"""
         keys = pygame.key.get_pressed()
         
-        # WASD controls
-        if keys[pygame.K_w] and self.direction != (0, 1):  # W - up
+        # Up (W or Up Arrow)
+        if (keys[pygame.K_w] or keys[pygame.K_UP]) and self.direction != (0, 1):
             self.direction = (0, -1)
-        elif keys[pygame.K_s] and self.direction != (0, -1):  # S - down
+        # Down (S or Down Arrow)
+        elif (keys[pygame.K_s] or keys[pygame.K_DOWN]) and self.direction != (0, -1):
             self.direction = (0, 1)
-        elif keys[pygame.K_a] and self.direction != (1, 0):  # A - left
+        # Left (A or Left Arrow)
+        elif (keys[pygame.K_a] or keys[pygame.K_LEFT]) and self.direction != (1, 0):
             self.direction = (-1, 0)
-        elif keys[pygame.K_d] and self.direction != (-1, 0):  # D - right
+        # Right (D or Right Arrow)
+        elif (keys[pygame.K_d] or keys[pygame.K_RIGHT]) and self.direction != (-1, 0):
             self.direction = (1, 0)
     
     def update(self):
@@ -216,7 +219,7 @@ class SnakeGame:
     
     def run(self):
         """Main game loop"""
-        print("Snake Game Controls: W/A/S/D to move, R to restart, ESC to quit")
+        print("Snake Game Controls: W/A/S/D or Arrows to move, R to restart, ESC to quit")
         print("Collect the colorful food items to grow and increase your score!")
         
         running = True
