@@ -28,8 +28,9 @@ ORANGE = (255, 165, 0)
 YELLOW = (255, 255, 0)
 PINK = (255, 20, 147)
 PURPLE = (148, 0, 211)
+BLUE = (0, 0, 255)
 
-FOOD_COLORS = [RED, ORANGE, YELLOW, PINK, PURPLE]
+FOOD_COLORS = [RED, ORANGE, YELLOW, PINK, PURPLE, BLUE]
 
 class SnakeGame:
     def __init__(self):
@@ -46,12 +47,13 @@ class SnakeGame:
         self.direction = (1, 0)  # Moving right
         self.score = 0
         self.game_over = False
+        self.growth_pending = 0
+        self.phasing_timer = 0  # Powerup duration in frames
         
         # Create multiple food items
         self.foods = []
-        self.spawn_food()
-        self.spawn_food()
-        self.spawn_food()
+        for _ in range(6):
+            self.spawn_food()
     
     def spawn_food(self):
         """Spawn a food item at a random location not occupied by snake or other food"""
@@ -85,6 +87,10 @@ class SnakeGame:
         if self.game_over:
             return
         
+        # Decrement powerup timer
+        if self.phasing_timer > 0:
+            self.phasing_timer -= 1
+
         # Move snake
         head_x, head_y = self.snake[0]
         new_head = (head_x + self.direction[0], head_y + self.direction[1])
@@ -92,8 +98,12 @@ class SnakeGame:
         # Check wall collision
         if (new_head[0] < 0 or new_head[0] >= GRID_WIDTH or 
             new_head[1] < 0 or new_head[1] >= GRID_HEIGHT):
-            self.game_over = True
-            return
+            if self.phasing_timer > 0:
+                # Wrap around logic
+                new_head = (new_head[0] % GRID_WIDTH, new_head[1] % GRID_HEIGHT)
+            else:
+                self.game_over = True
+                return
         
         # Check self collision
         if new_head in self.snake:
@@ -107,16 +117,29 @@ class SnakeGame:
         food_eaten = False
         for i, food in enumerate(self.foods):
             if new_head[0] == food[0] and new_head[1] == food[1]:
-                self.score += 10
+                # Powerups
+                if food[2] == PURPLE:
+                    self.score += 30
+                    self.growth_pending += 2
+                elif food[2] == BLUE:
+                    self.score += 10
+                    self.phasing_timer = 150  # 15 seconds at 10 FPS
+                else:
+                    self.score += 10
+                
                 self.foods.pop(i)
                 self.spawn_food()  # Spawn new food
                 food_eaten = True
                 break
-        
-        # Remove tail if no food eaten
-        if not food_eaten:
-            self.snake.pop()
-    
+
+        # Remove tail if no food eaten and no pending growth
+        if food_eaten:
+            pass # Already grew by 1
+        elif self.growth_pending > 0:
+            self.growth_pending -= 1 # Grow by 1 this move
+        else:
+            self.snake.pop() # Normal move, no growth
+
     def draw_3d_food(self, x, y, color):
         """Draw food with 3D effect"""
         pixel_x = x * GRID_SIZE
@@ -143,16 +166,32 @@ class SnakeGame:
         """Render the game"""
         self.screen.fill(BLACK)
         
+        # Flashing logic for phasing powerup
+        show_snake = True
+        if self.phasing_timer > 0:
+            # Last 5 seconds (50 frames) flash faster
+            if self.phasing_timer < 50:
+                if (pygame.time.get_ticks() // 100) % 2 == 0:
+                    show_snake = False
+            else:
+                if (pygame.time.get_ticks() // 400) % 2 == 0:
+                    show_snake = False
+
         # Draw snake
-        for i, segment in enumerate(self.snake):
-            x, y = segment
-            pixel_x = x * GRID_SIZE
-            pixel_y = y * GRID_SIZE
-            
-            # Snake head is brighter
-            color = GREEN if i == 0 else DARK_GREEN
-            pygame.draw.rect(self.screen, color, 
-                           (pixel_x, pixel_y, GRID_SIZE-1, GRID_SIZE-1))
+        if show_snake:
+            for i, segment in enumerate(self.snake):
+                x, y = segment
+                pixel_x = x * GRID_SIZE
+                pixel_y = y * GRID_SIZE
+                
+                # Snake head is brighter
+                color = GREEN if i == 0 else DARK_GREEN
+                # If phasing, make it slightly blueish
+                if self.phasing_timer > 0:
+                    color = (max(0, color[0]-50), max(0, color[1]-50), 255)
+
+                pygame.draw.rect(self.screen, color, 
+                               (pixel_x, pixel_y, GRID_SIZE-1, GRID_SIZE-1))
         
         # Draw food items with 3D effect
         for food in self.foods:
@@ -202,7 +241,7 @@ class SnakeGame:
             self.render()
             
             # Control game speed
-            self.clock.tick(15)  # 10 FPS for smooth movement
+            self.clock.tick(10)  # 10 FPS for smooth movement
         
         pygame.quit()
         sys.exit()
