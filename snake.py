@@ -76,13 +76,13 @@ class SnakeGame:
             x = random.randint(1, GRID_WIDTH - 2)
             y = random.randint(1, GRID_HEIGHT - 2)
             
-            # Check if position is free
-            if (x, y) not in self.snake and not any((x, y) == food[:2] for food in self.foods):
+            # Check if position is free (using distance to avoid stacking with floating fruits)
+            if (x, y) not in self.snake and not any(abs(x - f[0]) < 0.8 and abs(y - f[1]) < 0.8 for f in self.foods):
                 # RNG System: Regular (R,O,Y,P), Powerups (Purple, Blue), Banana, Magnet
                 # Weights: Regular=20 each (80 total), Purple/Blue/Magnet=10 each, Banana=5
                 weights = [20, 20, 20, 20, 10, 10, 5, 10]
                 color = random.choices(FOOD_COLORS, weights=weights)[0]
-                self.foods.append((x, y, color))
+                self.foods.append((x, float(y), color)) # Ensure coords are floats
                 break
 
     def handle_input(self):
@@ -203,7 +203,8 @@ class SnakeGame:
             head_x = self.prev_snake[0][0] + (self.snake[0][0] - self.prev_snake[0][0]) * progress
             head_y = self.prev_snake[0][1] + (self.snake[0][1] - self.prev_snake[0][1]) * progress
             
-            for i in range(len(self.foods)):
+            # Iterate backwards to safely remove eaten items
+            for i in range(len(self.foods) - 1, -1, -1):
                 fx, fy, fcolor = self.foods[i]
                 dx = head_x - fx
                 dy = head_y - fy
@@ -215,7 +216,13 @@ class SnakeGame:
                 if dy < -GRID_HEIGHT / 2: dy += GRID_HEIGHT
                 
                 dist = (dx**2 + dy**2)**0.5
-                if dist < 5 and dist > 0.01:
+                if dist < 5.2:
+                    if dist < 0.5: # Eaten by suction! (More forgiving threshold)
+                        # Add base growth + bonus for this food
+                        self.growth_pending += 1
+                        self.eat_food(i, fcolor)
+                        continue
+                        
                     # Smoothly glide towards center (head) - faster than snake
                     pull_speed = 0.015 * dt
                     # Limit move distance to avoid overshooting
