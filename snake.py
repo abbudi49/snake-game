@@ -40,17 +40,25 @@ class SnakeGame:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         
+        # Timing for smooth animation
+        self.MOVE_TIME = 150  # milliseconds between grid moves
+        self.move_timer = 0
+        self.next_direction = (1, 0)
+        
         self.reset_game()
     
     def reset_game(self):
         # Snake starts in the middle
         self.snake = [(GRID_WIDTH // 2, GRID_HEIGHT // 2)]
+        self.prev_snake = list(self.snake)  # For interpolation
         self.direction = (1, 0)  # Moving right
+        self.next_direction = (1, 0)
         self.score = 0
         self.game_over = False
         self.growth_pending = 0
         self.phasing_timer = 0  # Powerup duration in frames
         self.respawn_queue = []  # List of frame timers for food respawn
+        self.move_timer = 0
         
         # Create multiple food items
         self.foods = []
@@ -78,29 +86,29 @@ class SnakeGame:
         """Handle WASD and Arrow key input"""
         keys = pygame.key.get_pressed()
         
-        # Up (W or Up Arrow)
+        # Buffer the next direction to prevent 180-turns during interpolation
         if (keys[pygame.K_w] or keys[pygame.K_UP]) and self.direction != (0, 1):
-            self.direction = (0, -1)
-        # Down (S or Down Arrow)
+            self.next_direction = (0, -1)
         elif (keys[pygame.K_s] or keys[pygame.K_DOWN]) and self.direction != (0, -1):
-            self.direction = (0, 1)
-        # Left (A or Left Arrow)
+            self.next_direction = (0, 1)
         elif (keys[pygame.K_a] or keys[pygame.K_LEFT]) and self.direction != (1, 0):
-            self.direction = (-1, 0)
-        # Right (D or Right Arrow)
+            self.next_direction = (-1, 0)
         elif (keys[pygame.K_d] or keys[pygame.K_RIGHT]) and self.direction != (-1, 0):
-            self.direction = (1, 0)
+            self.next_direction = (1, 0)
     
-    def update(self):
-        """Update game state"""
+    def logic_step(self):
+        """Run one step of game logic (grid move)"""
         if self.game_over:
             return
+
+        self.direction = self.next_direction
+        self.prev_snake = list(self.snake)
         
         # Decrement powerup timer
         if self.phasing_timer > 0:
             self.phasing_timer -= 1
 
-        # Move snake
+        # Calculate new head
         head_x, head_y = self.snake[0]
         new_head = (head_x + self.direction[0], head_y + self.direction[1])
         
@@ -126,19 +134,17 @@ class SnakeGame:
                     self.growth_pending += 2
                 elif food[2] == BLUE:
                     self.score += 10
-                    self.phasing_timer = 150  # 15 seconds at 10 FPS
+                    self.phasing_timer = 100  # Duration in logic steps
                 elif food[2] == BANANA_YELLOW:
-                    # Lose 3 units of length
                     target_len = max(1, (len(self.snake) - 1) - 3)
                     while len(self.snake) > target_len:
                         self.snake.pop()
-                    food_eaten = True # Prevent normal growth
+                    food_eaten = True
                 else:
                     self.score += 10
                 
                 self.foods.pop(i)
-                # Delay respawn by 3 seconds (30 frames at 10 FPS)
-                self.respawn_queue.append(30)
+                self.respawn_queue.append(20) # Respawn delay in logic steps
                 food_eaten = True
                 break
 
@@ -153,11 +159,21 @@ class SnakeGame:
 
         # Remove tail if no food eaten and no pending growth
         if food_eaten:
-            pass # Already grew (or shrunk)
+            pass 
         elif self.growth_pending > 0:
-            self.growth_pending -= 1 # Grow by 1 this move
+            self.growth_pending -= 1
         else:
-            self.snake.pop() # Normal move, no growth
+            self.snake.pop()
+
+    def update(self, dt):
+        """Update game state with timing"""
+        if self.game_over:
+            return
+            
+        self.move_timer += dt
+        while self.move_timer >= self.MOVE_TIME:
+            self.logic_step()
+            self.move_timer -= self.MOVE_TIME
 
     def draw_banana(self, x, y):
         """Draw a more realistic banana shape"""
@@ -212,35 +228,53 @@ class SnakeGame:
                          GRID_SIZE//4)
     
     def render(self):
-        """Render the game"""
+        """Render the game with smooth interpolation"""
         self.screen.fill(BLACK)
         
-        # Subtle pulsing/flashing logic for phasing powerup (never invisible)
+        # Interpolation progress (0.0 to 1.0)
+        progress = self.move_timer / self.MOVE_TIME
+        
+        # Subtle pulsing/flashing logic for phasing powerup
         snake_alpha = 255
         if self.phasing_timer > 0:
-            # Last 5 seconds (50 frames) pulse faster
-            if self.phasing_timer < 50:
-                # Pulse between 100 and 255 alpha
+            if self.phasing_timer < 30: # Last few steps
                 if (pygame.time.get_ticks() // 100) % 2 == 0:
                     snake_alpha = 150
             else:
-                # Pulse slower
                 if (pygame.time.get_ticks() // 400) % 2 == 0:
                     snake_alpha = 180
 
-        # Draw snake
-        for i, segment in enumerate(self.snake):
-            x, y = segment
-            pixel_x = x * GRID_SIZE
-            pixel_y = y * GRID_SIZE
+        # Draw snake segments with interpolation
+        for i in range(len(self.snake)):
+            curr = self.snake[i]
+            # Use prev_snake for interpolation if it matches current structure
+            if i < len(self.prev_snake):
+                prev = self.prev_snake[i]
+            else:
+                # Segment was just added (growth), stay at last segment's old position
+                prev = self.prev_snake[-1]
             
-            # Snake head is brighter
+            # Smooth position calculation
+            # Special case for wall wrapping: don't interpolate across the screen
+            dx = curr[0] - prev[0]
+            dy = curr[1] - prev[1]
+            
+            if abs(dx) > 1: # Wrapped around X
+                interp_x = curr[0] if progress > 0.5 else prev[0]
+            else:
+                interp_x = prev[0] + dx * progress
+                
+            if abs(dy) > 1: # Wrapped around Y
+                interp_y = curr[1] if progress > 0.5 else prev[1]
+            else:
+                interp_y = prev[1] + dy * progress
+
+            pixel_x = interp_x * GRID_SIZE
+            pixel_y = interp_y * GRID_SIZE
+            
             color = GREEN if i == 0 else DARK_GREEN
-            
-            # If phasing, make it blueish and apply alpha pulsing
             if self.phasing_timer > 0:
                 color = (max(0, color[0]-100), max(0, color[1]-100), 255)
-                # Simulating alpha by blending with background (BLACK)
                 color = tuple(int(c * (snake_alpha / 255)) for c in color)
 
             pygame.draw.rect(self.screen, color, 
@@ -267,13 +301,14 @@ class SnakeGame:
         pygame.display.flip()
     
     def run(self):
-        """Main game loop"""
+        """Main game loop at 60 FPS for smooth rendering"""
         print("Snake Game Controls: W/A/S/D or Arrows to move, R to restart, ESC to quit")
         print("Game Features: Walls wrap around. Blue fruit lets you pass through your own body!")
-        print("Collect the colorful food items to grow and increase your score!")
         
         running = True
         while running:
+            dt = self.clock.tick(60) # 60 FPS
+            
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -287,14 +322,11 @@ class SnakeGame:
             # Handle continuous input
             self.handle_input()
             
-            # Update game
-            self.update()
+            # Update game logic based on MOVE_TIME
+            self.update(dt)
             
-            # Render
+            # Render smoothly at 60 FPS
             self.render()
-            
-            # Control game speed
-            self.clock.tick(10)  # 10 FPS for smooth movement
         
         pygame.quit()
         sys.exit()
