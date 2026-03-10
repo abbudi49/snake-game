@@ -103,20 +103,14 @@ class SnakeGame:
         head_x, head_y = self.snake[0]
         new_head = (head_x + self.direction[0], head_y + self.direction[1])
         
-        # Check wall collision
-        if (new_head[0] < 0 or new_head[0] >= GRID_WIDTH or 
-            new_head[1] < 0 or new_head[1] >= GRID_HEIGHT):
-            if self.phasing_timer > 0:
-                # Wrap around logic
-                new_head = (new_head[0] % GRID_WIDTH, new_head[1] % GRID_HEIGHT)
-            else:
+        # Permanent wall wrap-around logic
+        new_head = (new_head[0] % GRID_WIDTH, new_head[1] % GRID_HEIGHT)
+        
+        # Check self collision (Disabled if phasing powerup is active)
+        if self.phasing_timer == 0:
+            if new_head in self.snake:
                 self.game_over = True
                 return
-        
-        # Check self collision
-        if new_head in self.snake:
-            self.game_over = True
-            return
         
         # Add new head
         self.snake.insert(0, new_head)
@@ -204,32 +198,36 @@ class SnakeGame:
         """Render the game"""
         self.screen.fill(BLACK)
         
-        # Flashing logic for phasing powerup
-        show_snake = True
+        # Subtle pulsing/flashing logic for phasing powerup (never invisible)
+        snake_alpha = 255
         if self.phasing_timer > 0:
-            # Last 5 seconds (50 frames) flash faster
+            # Last 5 seconds (50 frames) pulse faster
             if self.phasing_timer < 50:
+                # Pulse between 100 and 255 alpha
                 if (pygame.time.get_ticks() // 100) % 2 == 0:
-                    show_snake = False
+                    snake_alpha = 150
             else:
+                # Pulse slower
                 if (pygame.time.get_ticks() // 400) % 2 == 0:
-                    show_snake = False
+                    snake_alpha = 180
 
         # Draw snake
-        if show_snake:
-            for i, segment in enumerate(self.snake):
-                x, y = segment
-                pixel_x = x * GRID_SIZE
-                pixel_y = y * GRID_SIZE
-                
-                # Snake head is brighter
-                color = GREEN if i == 0 else DARK_GREEN
-                # If phasing, make it slightly blueish
-                if self.phasing_timer > 0:
-                    color = (max(0, color[0]-50), max(0, color[1]-50), 255)
+        for i, segment in enumerate(self.snake):
+            x, y = segment
+            pixel_x = x * GRID_SIZE
+            pixel_y = y * GRID_SIZE
+            
+            # Snake head is brighter
+            color = GREEN if i == 0 else DARK_GREEN
+            
+            # If phasing, make it blueish and apply alpha pulsing
+            if self.phasing_timer > 0:
+                color = (max(0, color[0]-100), max(0, color[1]-100), 255)
+                # Simulating alpha by blending with background (BLACK)
+                color = tuple(int(c * (snake_alpha / 255)) for c in color)
 
-                pygame.draw.rect(self.screen, color, 
-                               (pixel_x, pixel_y, GRID_SIZE-1, GRID_SIZE-1))
+            pygame.draw.rect(self.screen, color, 
+                           (pixel_x, pixel_y, GRID_SIZE-1, GRID_SIZE-1))
         
         # Draw food items with 3D effect
         for food in self.foods:
@@ -254,6 +252,7 @@ class SnakeGame:
     def run(self):
         """Main game loop"""
         print("Snake Game Controls: W/A/S/D or Arrows to move, R to restart, ESC to quit")
+        print("Game Features: Walls wrap around. Blue fruit lets you pass through your own body!")
         print("Collect the colorful food items to grow and increase your score!")
         
         running = True
